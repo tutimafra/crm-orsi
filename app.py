@@ -51,8 +51,7 @@ def autenticar():
 
 @app.route('/dashboard')
 def dashboard():
-    # --- CORREÇÃO AUTOMÁTICA DE STATUS NO BANCO DE DADOS ---
-    db.session.query(Empresa).filter(Empresa.status == None).update({"status": "Pendente"}, synchronize_session=False)
+    db.session.query(Empresa).filter((Empresa.status == None) | (Empresa.status == '')).update({"status": "Pendente"}, synchronize_session=False)
     db.session.commit()
     
     agora = datetime.now()
@@ -80,6 +79,13 @@ def dashboard():
             db.session.commit()
 
     return render_template('dashboard.html', empresas=empresas_do_lote, historico=historico)
+
+@app.route('/forcar_sorteio')
+def forcar_sorteio():
+    # Apaga o controle de tempo atual para o sistema ser obrigado a sortear novas empresas
+    ControleTempo.query.delete()
+    db.session.commit()
+    return redirect(url_for('dashboard'))
 
 @app.route('/atualizar/<int:id>/<novo_status>')
 def atualizar_status(id, novo_status):
@@ -151,7 +157,7 @@ def upload_file():
                 nome=nome_empresa,
                 cnpj_cpf=documento,
                 divida=divida_valor,
-                status='Pendente' # Correção para envios futuros
+                status='Pendente'
             )
             novas_empresas.append(nova_empresa)
             nomes_existentes.add(nome_empresa)
