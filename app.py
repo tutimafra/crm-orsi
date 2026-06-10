@@ -72,7 +72,7 @@ def dashboard():
         # Primeiro acesso do dia: sorteia 50 empresas que estão 'Pendentes'
         empresas_pendentes = Empresa.query.filter_by(status='Pendente').all()
         if empresas_pendentes:
-            quantidade = min(50, len(empresas_pendentes))
+            quantidade = min(20, len(empresas_pendentes))
             sorteadas = random.sample(empresas_pendentes, quantidade)
             empresas_do_dia = sorteadas
             
