@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta http-equiv="refresh" content="600">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="600">
     <title>Orsi Advogados | Painel CRM</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 1250px; margin: 0 auto; }
-        h1, h2 { color: #2c3e50; }
+        h1, h2 { color: #2c3e50; display: inline-block; margin-bottom: 0; }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .upload-btn { background-color: #2c3e50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 4px; overflow: hidden; }
@@ -25,13 +26,15 @@
         .btn-retornar { background-color: #e67e22; }
         .btn-negado { background-color: #95a5a6; }
         .btn-api { background-color: #3498db; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .btn-force { background-color: #8e44ad; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .btn-force:hover { background-color: #732d91; }
         .flash-message { background-color: #2ecc71; color: white; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>Orsi Advogados | CRM</h2>
+            <h2 style="margin: 0;">Orsi Advogados | CRM</h2>
             <a href="/" style="color: #c0392b; font-weight: bold; text-decoration: none;">Sair</a>
         </div>
 
@@ -43,14 +46,17 @@
 
         <div class="card">
             <h2>Carregar Planilha Completa de Devedores</h2>
-            <form action="/upload" method="POST" enctype="multipart/form-data">
-                <input type="file" name="planilha" accept=".xlsx, .xls" required>
+            <form action="/upload" method="POST" enctype="multipart/form-data" style="margin-top: 10px;">
+                <input type="file" name="planilha" accept=".csv, .xlsx, .xls" required>
                 <button type="submit" class="upload-btn">Importar Instantaneamente</button>
             </form>
         </div>
 
         <div class="card">
-            <h2>Empresas Pendentes de Contato</h2>
+            <div class="header-flex">
+                <h2>Empresas Pendentes de Contato</h2>
+                <a href="/forcar_sorteio" class="btn-force">🔄 Sortear Novo Lote Agora</a>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -64,7 +70,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for empresa in historico if empresa.status == 'Pendente' %}
+                    {% for empresa in empresas %}
                     <tr>
                         <td><strong>{{ empresa.nome }}</strong></td>
                         <td>{{ empresa.cnpj_cpf }}</td>
@@ -82,7 +88,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Suba uma planilha ou clique em Sair.</td>
+                        <td colspan="7" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Suba a planilha ou clique em "Sortear Novo Lote Agora".</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -103,7 +109,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for empresa in empresas if empresa.status != 'Pendente' %}
+                    {% for empresa in historico %}
                     <tr>
                         <td>{{ empresa.nome }}</td>
                         <td>{{ empresa.cnpj_cpf }}</td>
@@ -122,13 +128,12 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" style="text-align: center; color: #7f8c8d;">Nenhum lead processado ainda. Clique em "Agendou", "Retornar" ou "Recusou" na tabela de cima para testar!</td>
+                        <td colspan="6" style="text-align: center; color: #7f8c8d;">Nenhum lead processado ainda.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-
     </div>
 </body>
 </html>
