@@ -11,7 +11,7 @@ app.secret_key = 'chave_secreta_super_segura'
 app.config['UPLOAD_FOLDER'] = 'uploads_temp'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-USUARIO_TESTE = {'email': 'contato@exemplo.com.br', 'senha': '123'}
+USUARIO_TESTE = {'email': 'contato@orsiadvogados.com', 'senha': '123'}
 
 # Lista que guarda os contatos
 DEVEDORES_PROCESSADOS = []
