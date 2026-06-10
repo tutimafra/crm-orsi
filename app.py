@@ -19,10 +19,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Controle de sorteio por tempo (Expira a cada 10 minutos)
 class ControleTempo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    horario_validade = db.Column(db.DateTime) # Momento em que o lote atual expira
+    horario_validade = db.Column(db.DateTime)
     ids_empresas = db.Column(db.Text)
 
 class Empresa(db.Model):
@@ -58,21 +57,17 @@ def dashboard():
     historico = Empresa.query.filter(Empresa.status != 'Pendente').all()
     empresas_do_lote = []
     
-    # Verifica se o lote atual ainda é válido
     if controle and controle.horario_validade > agora:
         if controle.ids_empresas:
             ids = [int(x) for x in controle.ids_empresas.split(',') if x]
-            # Exibe as empresas do lote que continuam Pendentes
             empresas_do_lote = Empresa.query.filter(Empresa.id.in_(ids), Empresa.status == 'Pendente').all()
     else:
-        # Lote expirou ou é o primeiro acesso: Sorteia 5 novas empresas
         empresas_pendentes = Empresa.query.filter_by(status='Pendente').all()
         if empresas_pendentes:
             quantidade = min(5, len(empresas_pendentes))
-            sorteadas = random.sample(empresas_pendentes, k=quantidade) # Adicionado o k= aqui
+            sorteadas = random.sample(empresas_pendentes, k=quantidade)
             empresas_do_lote = sorteadas
             
-            # Define validade para daqui a 10 minutos
             validade = agora + timedelta(minutes=10)
             string_ids = ','.join([str(e.id) for e in sorteadas])
             
@@ -113,44 +108,65 @@ def buscar_api(id):
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'planilha' not in request.files: return redirect(url_for('dashboard'))
+    if 'planilha' not in request.files: 
+        return redirect(url_for('dashboard'))
     file = request.files['planilha']
-    if file.filename == '': return redirect(url_for('dashboard'))
+    if file.filename == '': 
+        return redirect(url_for('dashboard'))
 
-    filepath = os.path.join(file.filename)
-    file.save(filepath)
+    try:
+        filepath = os.path.join(file.filename)
+        file.save(filepath)
 
-    # Lendo o arquivo (O segredo do CSV está aqui abaixo)
-    if file.filename.endswith('.csv'):
-        df = pd.read_csv(filepath, encoding='utf-8', sep=';')
-    else:
-        df = pd.read_excel(filepath)
-    
-    novas_empresas = []
-    nomes_existentes = {e.nome for e in Empresa.query.with_entities(Empresa.nome).all()}
-    
-    for _, row in df.iterrows():
-        nome_empresa = row.get('Nome / Nome Empresarial')
-        if pd.isna(nome_empresa) or nome_empresa in nomes_existentes:
-            continue
+        # Anti-Crash: Detecta o separador correto automaticamente
+        if file.filename.endswith('.csv'):
+            try:
+                df = pd.read_csv(filepath, encoding='utf-8', sep=';')
+                if 'Nome / Nome Empresarial' not in df.columns:
+                    df = pd.read_csv(filepath, encoding='utf-8', sep=',')
+            except:
+                df = pd.read_csv(filepath, encoding='utf-8', sep=',')
+        else:
+            df = pd.read_excel(filepath)
+        
+        # Verifica se as colunas obrigatórias existem
+        if 'Nome / Nome Empresarial' not in df.columns:
+            flash("Erro: A coluna 'Nome / Nome Empresarial' não foi encontrada. Verifique os títulos no Google Planilhas.")
+            return redirect(url_for('dashboard'))
 
-        documento = str(row.get('CNPJ / CPF', '')).strip()
-        divida_valor = str(row.get('Valor do débito', '0'))
+        novas_empresas = []
+        nomes_existentes = {e.nome for e in Empresa.query.with_entities(Empresa.nome).all()}
+        
+        for _, row in df.iterrows():
+            nome_empresa = row.get('Nome / Nome Empresarial')
+            if pd.isna(nome_empresa) or nome_empresa in nomes_existentes:
+                continue
 
-        nova_empresa = Empresa(
-            nome=nome_empresa,
-            cnpj_cpf=documento,
-            divida=divida_valor
-        )
-        novas_empresas.append(nova_empresa)
-        nomes_existentes.add(nome_empresa)
-    
-    if novas_empresas:
-        db.session.bulk_save_objects(novas_empresas)
-        db.session.commit()
-        flash(f'✅ {len(novas_empresas)} empresas importadas com sucesso!')
-    else:
-        flash('Nenhuma nova empresa encontrada.')
+            documento = str(row.get('CNPJ / CPF', '')).strip()
+            divida_valor = str(row.get('Valor do débito', '0'))
+
+            nova_empresa = Empresa(
+                nome=nome_empresa,
+                cnpj_cpf=documento,
+                divida=divida_valor
+            )
+            novas_empresas.append(nova_empresa)
+            nomes_existentes.add(nome_empresa)
+        
+        if novas_empresas:
+            # Salvamento em Lotes (Pacotes de 2000 em 2000 para não estourar a memória do Render)
+            tamanho_lote = 2000
+            for i in range(0, len(novas_empresas), tamanho_lote):
+                db.session.bulk_save_objects(novas_empresas[i:i+tamanho_lote])
+                db.session.commit()
+            
+            flash(f'✅ Sucesso! {len(novas_empresas)} empresas importadas e prontas para uso.')
+        else:
+            flash('Nenhuma empresa nova encontrada na planilha.')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Falha ao carregar arquivo: {str(e)}')
         
     return redirect(url_for('dashboard'))
 
