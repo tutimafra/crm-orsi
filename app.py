@@ -82,7 +82,6 @@ def dashboard():
 
 @app.route('/forcar_sorteio')
 def forcar_sorteio():
-    # Apaga o controle de tempo atual para o sistema ser obrigado a sortear novas empresas
     ControleTempo.query.delete()
     db.session.commit()
     return redirect(url_for('dashboard'))
@@ -100,20 +99,27 @@ def atualizar_status(id, novo_status):
 def buscar_api(id):
     empresa = Empresa.query.get(id)
     if empresa and empresa.cnpj_cpf:
-        doc_limpo = re.sub(r'\D', '', empresa.cnpj_cpf)
-        if len(doc_limpo) == 14:
-            try:
-                res = requests.get(f"https://brasilapi.com.br/api/cnpj/v1/{doc_limpo}", timeout=4)
-                if res.status_code == 200:
-                    data = res.json()
-                    empresa.telefone = data.get('ddd_telefone_1', 'Não cadastrado')
-                    empresa.email = data.get('email', 'Não cadastrado')
-                    db.session.commit()
-                    flash(f'✅ Dados de {empresa.nome} atualizados!')
-                else:
-                    flash('Empresa não encontrada na Receita.')
-            except:
-                flash('Erro temporário na API. Tente novamente.')
+        # Pega apenas os números
+        doc_limpo = re.sub(r'\D', '', str(empresa.cnpj_cpf))
+        
+        # O SEGREDO: Preenche com zeros à esquerda até dar 14 dígitos
+        doc_limpo = doc_limpo.zfill(14)
+        
+        try:
+            res = requests.get(f"https://brasilapi.com.br/api/cnpj/v1/{doc_limpo}", timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                empresa.telefone = data.get('ddd_telefone_1', 'Não cadastrado')
+                empresa.email = data.get('email', 'Não cadastrado')
+                db.session.commit()
+                flash(f'✅ Dados de {empresa.nome} atualizados com sucesso!')
+            else:
+                flash(f'❌ Empresa não encontrada na Receita (CNPJ testado: {doc_limpo}).')
+        except:
+            flash('⚠️ Erro de conexão com a API da Receita. Tente de novo.')
+    else:
+        flash('❌ Esta empresa não possui CNPJ/CPF cadastrado para consulta.')
+        
     return redirect(url_for('dashboard'))
 
 @app.route('/upload', methods=['POST'])
