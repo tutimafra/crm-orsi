@@ -6,31 +6,31 @@
     <title>Orsi Advogados | Painel CRM</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1250px; margin: 0 auto; }
         h1, h2 { color: #2c3e50; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .upload-btn { background-color: #2c3e50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .upload-btn:hover { background-color: #1a252f; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 4px; overflow: hidden; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background-color: #2c3e50; color: white; }
         tr:hover { background-color: #f9f9f9; }
-        .badge { padding: 5px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-        .badge-pendente { background-color: #f1c40f; color: #fff; }
-        .badge-reuniao { background-color: #3498db; color: #fff; }
-        .badge-retornar { background-color: #e67e22; color: #fff; }
-        .badge-negado { background-color: #95a5a6; color: #fff; }
+        .badge { padding: 5px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: white; }
+        .badge-pendente { background-color: #f1c40f; }
+        .badge-reuniao { background-color: #2ecc71; }
+        .badge-retornar { background-color: #e67e22; }
+        .badge-negado { background-color: #95a5a6; }
         .btn-action { padding: 5px 8px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 11px; font-weight: bold; margin-right: 2px; color: white; display: inline-block; }
-        .btn-reuniao { background-color: #3498db; }
+        .btn-reuniao { background-color: #2ecc71; }
         .btn-retornar { background-color: #e67e22; }
         .btn-negado { background-color: #95a5a6; }
+        .btn-api { background-color: #3498db; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .flash-message { background-color: #2ecc71; color: white; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h1>Orsi Advogados</h1>
+            <h2>Orsi Advogados | CRM</h2>
             <a href="/" style="color: #c0392b; font-weight: bold; text-decoration: none;">Sair</a>
         </div>
 
@@ -41,10 +41,10 @@
         {% endwith %}
 
         <div class="card">
-            <h2>Carregar Nova Planilha de Devedores</h2>
+            <h2>Carregar Planilha Completa de Devedores</h2>
             <form action="/upload" method="POST" enctype="multipart/form-data">
-                <input type="file" name="planilha" accept=".xlsx, .xls" required style="margin-right: 10px;">
-                <button type="submit" class="upload-btn">Processar e Salvar no Banco</button>
+                <input type="file" name="planilha" accept=".xlsx, .xls" required>
+                <button type="submit" class="upload-btn">Importar Instantaneamente</button>
             </form>
         </div>
 
@@ -54,10 +54,11 @@
                 <thead>
                     <tr>
                         <th>Nome / Razão Social</th>
+                        <th>CNPJ/CPF</th>
                         <th>Dívida</th>
                         <th>Telefone</th>
                         <th>E-mail</th>
-                        <th>Status</th>
+                        <th>Consultar</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -65,10 +66,13 @@
                     {% for empresa in empresas if empresa.status == 'Pendente' %}
                     <tr>
                         <td><strong>{{ empresa.nome }}</strong></td>
+                        <td>{{ empresa.cnpj_cpf }}</td>
                         <td>R$ {{ empresa.divida }}</td>
                         <td>{{ empresa.telefone }}</td>
                         <td>{{ empresa.email }}</td>
-                        <td><span class="badge badge-pendente">Pendente</span></td>
+                        <td>
+                            <a href="/buscar_api/{{ empresa.id }}" class="btn-api">🔍 Buscar Dados</a>
+                        </td>
                         <td>
                             <a href="/atualizar/{{ empresa.id }}/reuniao" class="btn-action btn-reuniao">Agendou</a>
                             <a href="/atualizar/{{ empresa.id }}/retornar" class="btn-action btn-retornar">Retornar</a>
@@ -77,7 +81,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Carregue uma planilha acima!</td>
+                        <td colspan="7" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Suba uma planilha ou clique em Sair.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -90,16 +94,18 @@
                 <thead>
                     <tr>
                         <th>Nome / Razão Social</th>
+                        <th>CNPJ/CPF</th>
                         <th>Dívida</th>
                         <th>Telefone</th>
                         <th>E-mail</th>
-                        <th>Status Atual</th>
+                        <th>Status Salvo</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for empresa in empresas if empresa.status != 'Pendente' %}
                     <tr>
                         <td>{{ empresa.nome }}</td>
+                        <td>{{ empresa.cnpj_cpf }}</td>
                         <td>R$ {{ empresa.divida }}</td>
                         <td>{{ empresa.telefone }}</td>
                         <td>{{ empresa.email }}</td>
@@ -115,12 +121,13 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #7f8c8d;">Nenhum histórico registrado ainda.</td>
+                        <td colspan="6" style="text-align: center; color: #7f8c8d;">Nenhum lead processado ainda. Clique em "Agendou", "Retornar" ou "Recusou" na tabela de cima para testar!</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
     </div>
 </body>
 </html>
