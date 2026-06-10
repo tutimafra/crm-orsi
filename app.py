@@ -57,26 +57,23 @@ def dashboard():
     hoje = datetime.now().strftime('%Y-%m-%d')
     controle = ControleDiario.query.filter_by(data_sorteio=hoje).first()
     
-    # Busca todas as empresas que já foram processadas (Histórico)
+    # Busca o histórico de empresas já processadas
     historico = Empresa.query.filter(Empresa.status != 'Pendente').all()
-    
     empresas_do_dia = []
     
     if controle:
-        # Se já houve sorteio hoje, recupera as empresas pelos IDs salvos
         if controle.ids_empresas:
             ids = [int(x) for x in controle.ids_empresas.split(',') if x]
-            # Mantém apenas as que continuam 'Pendentes' (caso alguma tenha sido atualizada hoje)
+            # Mostra as empresas do sorteio que ainda continuam pendentes
             empresas_do_dia = Empresa.query.filter(Empresa.id.in_(ids), Empresa.status == 'Pendente').all()
     else:
-        # Primeiro acesso do dia: sorteia 50 empresas que estão 'Pendentes'
+        # Primeiro acesso do dia: sorteia rigorosamente 10 empresas pendentes
         empresas_pendentes = Empresa.query.filter_by(status='Pendente').all()
         if empresas_pendentes:
-            quantidade = min(20, len(empresas_pendentes))
-            sorteadas = random.sample(empresas_pendentes, quantidade)
+            quantidade = min(10, len(empresas_pendentes))
+            sorteadas = random.sample(empresas_pendentes, quantity=quantidade)
             empresas_do_dia = sorteadas
             
-            # Salva a lista de IDs para travar o sorteio de hoje
             string_ids = ','.join([str(e.id) for e in sorteadas])
             novo_controle = ControleDiario(data_sorteio=hoje, ids_empresas=string_ids)
             db.session.add(novo_controle)
@@ -112,7 +109,7 @@ def buscar_api(id):
             except:
                 flash('Erro temporário na API. Tente novamente.')
         else:
-            flash('Apenas CNPJ pode ser consultado na Receita automaticamente.')
+            flash('Apenas CNPJ pode ser consultado automaticamente.')
     return redirect(url_for('dashboard'))
 
 @app.route('/upload', methods=['POST'])
@@ -125,11 +122,16 @@ def upload_file():
     file.save(filepath)
 
     df = pd.read_excel(filepath)
-    novos_registros = 0
+    
+    # MUDANÇA CRUCIAL: Criar lista em memória para salvar tudo de uma vez só (Ultra rápido)
+    novas_empresas = []
+    
+    # Carrega os nomes existentes para evitar duplicados rapidamente
+    nomes_existentes = {e.nome for e in Empresa.query.with_entities(Empresa.nome).all()}
     
     for _, row in df.iterrows():
         nome_empresa = row.get('Nome / Nome Empresarial')
-        if pd.isna(nome_empresa) or Empresa.query.filter_by(nome=nome_empresa).first():
+        if pd.isna(nome_empresa) or nome_empresa in nomes_existentes:
             continue
 
         documento = str(row.get('CNPJ / CPF', '')).strip()
@@ -140,11 +142,16 @@ def upload_file():
             cnpj_cpf=documento,
             divida=divida_valor
         )
-        db.session.add(nova_empresa)
-        novos_registros += 1
+        novas_empresas.append(nova_empresa)
+        nomes_existentes.add(nome_empresa) # Evita duplicados dentro da própria planilha
     
-    db.session.commit()
-    flash(f'✅ {novos_registros} novas empresas importadas para a base de dados!')
+    if novas_empresas:
+        db.session.bulk_save_objects(novas_empresas)
+        db.session.commit()
+        flash(f'✅ {len(novas_empresas)} empresas importadas com sucesso instantaneamente!')
+    else:
+        flash('Nenhuma nova empresa para importar.')
+        
     return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
