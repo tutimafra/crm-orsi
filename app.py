@@ -5,12 +5,11 @@ import pandas as pd
 import requests
 import re
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = 'chave_secreta_super_segura'
 
-# Configuração adaptada para o Postgres do Render ou SQLite local como fallback
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -20,13 +19,12 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Controle de sorteio diário
-class ControleDiario(db.Model):
+# Controle de sorteio por tempo (Expira a cada 10 minutos)
+class ControleTempo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    data_sorteio = db.Column(db.String(10), unique=True) # Formato 'YYYY-MM-DD'
-    ids_empresas = db.Column(db.Text) # Armazena os IDs separados por vírgula
+    horario_validade = db.Column(db.DateTime) # Momento em que o lote atual expira
+    ids_empresas = db.Column(db.Text)
 
-# Modelo do Banco de Dados para as Empresas
 class Empresa(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(250))
@@ -54,32 +52,35 @@ def autenticar():
 
 @app.route('/dashboard')
 def dashboard():
-    hoje = datetime.now().strftime('%Y-%m-%d')
-    controle = ControleDiario.query.filter_by(data_sorteio=hoje).first()
+    agora = datetime.now()
+    controle = ControleTempo.query.order_by(ControleTempo.id.desc()).first()
     
-    # Busca o histórico de empresas já processadas
     historico = Empresa.query.filter(Empresa.status != 'Pendente').all()
-    empresas_do_dia = []
+    empresas_do_lote = []
     
-    if controle:
+    # Verifica se o lote atual ainda é válido
+    if controle and controle.horario_validade > agora:
         if controle.ids_empresas:
             ids = [int(x) for x in controle.ids_empresas.split(',') if x]
-            # Mostra as empresas do sorteio que ainda continuam pendentes
-            empresas_do_dia = Empresa.query.filter(Empresa.id.in_(ids), Empresa.status == 'Pendente').all()
+            # Exibe as empresas do lote que continuam Pendentes
+            empresas_do_lote = Empresa.query.filter(Empresa.id.in_(ids), Empresa.status == 'Pendente').all()
     else:
-        # Primeiro acesso do dia: sorteia rigorosamente 10 empresas pendentes
+        # Lote expirou ou é o primeiro acesso: Sorteia 5 novas empresas
         empresas_pendentes = Empresa.query.filter_by(status='Pendente').all()
         if empresas_pendentes:
-            quantidade = min(10, len(empresas_pendentes))
-            sorteadas = random.sample(empresas_pendentes, quantity=quantidade)
-            empresas_do_dia = sorteadas
+            quantidade = min(5, len(empresas_pendentes))
+            sorteadas = random.sample(empresas_pendentes, quantidade)
+            empresas_do_lote = sorteadas
             
+            # Define validade para daqui a 10 minutos
+            validade = agora + timedelta(minutes=10)
             string_ids = ','.join([str(e.id) for e in sorteadas])
-            novo_controle = ControleDiario(data_sorteio=hoje, ids_empresas=string_ids)
+            
+            novo_controle = ControleTempo(horario_validade=validade, ids_empresas=string_ids)
             db.session.add(novo_controle)
             db.session.commit()
 
-    return render_template('dashboard.html', empresas=empresas_do_dia, historico=historico)
+    return render_template('dashboard.html', empresas=empresas_do_lote, historico=historico)
 
 @app.route('/atualizar/<int:id>/<novo_status>')
 def atualizar_status(id, novo_status):
@@ -108,8 +109,6 @@ def buscar_api(id):
                     flash('Empresa não encontrada na Receita.')
             except:
                 flash('Erro temporário na API. Tente novamente.')
-        else:
-            flash('Apenas CNPJ pode ser consultado automaticamente.')
     return redirect(url_for('dashboard'))
 
 @app.route('/upload', methods=['POST'])
@@ -121,12 +120,13 @@ def upload_file():
     filepath = os.path.join(file.filename)
     file.save(filepath)
 
-    df = pd.read_excel(filepath)
+    # Lendo o arquivo (O segredo do CSV está aqui abaixo)
+    if file.filename.endswith('.csv'):
+        df = pd.read_csv(filepath, encoding='utf-8', sep=';')
+    else:
+        df = pd.read_excel(filepath)
     
-    # MUDANÇA CRUCIAL: Criar lista em memória para salvar tudo de uma vez só (Ultra rápido)
     novas_empresas = []
-    
-    # Carrega os nomes existentes para evitar duplicados rapidamente
     nomes_existentes = {e.nome for e in Empresa.query.with_entities(Empresa.nome).all()}
     
     for _, row in df.iterrows():
@@ -143,14 +143,14 @@ def upload_file():
             divida=divida_valor
         )
         novas_empresas.append(nova_empresa)
-        nomes_existentes.add(nome_empresa) # Evita duplicados dentro da própria planilha
+        nomes_existentes.add(nome_empresa)
     
     if novas_empresas:
         db.session.bulk_save_objects(novas_empresas)
         db.session.commit()
-        flash(f'✅ {len(novas_empresas)} empresas importadas com sucesso instantaneamente!')
+        flash(f'✅ {len(novas_empresas)} empresas importadas com sucesso!')
     else:
-        flash('Nenhuma nova empresa para importar.')
+        flash('Nenhuma nova empresa encontrada.')
         
     return redirect(url_for('dashboard'))
 
