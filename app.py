@@ -27,12 +27,20 @@ with app.app_context():
     db.create_all()
 
 @app.route('/')
-def login(): return render_template('login.html')
+def login(): 
+    return render_template('login.html')
 
 @app.route('/autenticar', methods=['POST'])
 def autenticar():
-    if request.form['email'] == 'contato@exemplo.com.br' and request.form['senha'] == '123':
+    # .strip() remove espaços ocultos involuntários digitados pelo usuário
+    email_digitado = request.form.get('email', '').strip()
+    senha_digitada = request.form.get('senha', '').strip()
+    
+    if email_digitado == 'contato@exemplo.com.br' and senha_digitada == '123':
         return redirect(url_for('dashboard'))
+    
+    # Envia o aviso de erro exato para o seu login.html exibir na tela
+    flash('E-mail ou senha incorretos. Tente novamente.')
     return redirect(url_for('login'))
 
 @app.route('/dashboard')
@@ -51,25 +59,33 @@ def atualizar_status(id, novo_status):
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    if 'planilha' not in request.files:
+        flash('Nenhum arquivo enviado.')
+        return redirect(url_for('dashboard'))
+        
     file = request.files['planilha']
+    if file.filename == '':
+        flash('Nenhum arquivo selecionado.')
+        return redirect(url_for('dashboard'))
+
     filepath = os.path.join(basedir, file.filename)
     file.save(filepath)
 
-    df = pd.read_excel(filepath) # Lê a planilha TODA
+    df = pd.read_excel(filepath) # Lê a planilha inteira
     
     for _, row in df.iterrows():
-        # Lógica de CNPJ simplificada para salvar
         documento = str(row['CNPJ / CPF']).strip()
         doc_limpo = re.sub(r'\D', '', documento)
         
-        # Verifica se já existe (evita duplicados)
-        if Empresa.query.filter_by(nome=row['Nome / Nome Empresarial']).first():
+        # Ignora linhas com nomes vazios ou registros já existentes no banco
+        nome_empresa = row['Nome / Nome Empresarial']
+        if pd.isna(nome_empresa) or Empresa.query.filter_by(nome=nome_empresa).first():
             continue
 
         telefone = "Não encontrado"
         email = "Não encontrado"
         
-        # Tenta buscar na API
+        # Consulta à API caso seja CNPJ válido
         if len(doc_limpo) == 14:
             try:
                 res = requests.get(f"https://brasilapi.com.br/api/cnpj/v1/{doc_limpo}", timeout=5)
@@ -77,11 +93,12 @@ def upload_file():
                     data = res.json()
                     telefone = data.get('ddd_telefone_1', 'Não cadastrado')
                     email = data.get('email', 'Não cadastrado')
-            except: pass
-            time.sleep(1)
+            except: 
+                pass
+            time.sleep(1) # Respeita o limite de requisições da API
 
         nova_empresa = Empresa(
-            nome=row['Nome / Nome Empresarial'],
+            nome=nome_empresa,
             telefone=telefone,
             email=email,
             divida=str(row['Valor do débito'])
@@ -89,7 +106,7 @@ def upload_file():
         db.session.add(nova_empresa)
     
     db.session.commit()
-    flash('✅ Planilha processada e salva no banco!')
+    flash('✅ Planilha processada e salva com sucesso!')
     return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
