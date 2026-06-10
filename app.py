@@ -69,7 +69,7 @@ def dashboard():
         empresas_pendentes = Empresa.query.filter_by(status='Pendente').all()
         if empresas_pendentes:
             quantidade = min(5, len(empresas_pendentes))
-            sorteadas = random.sample(empresas_pendentes, quantidade)
+            sorteadas = random.sample(empresas_pendentes, k=quantidade) # Adicionado o k= aqui
             empresas_do_lote = sorteadas
             
             # Define validade para daqui a 10 minutos
