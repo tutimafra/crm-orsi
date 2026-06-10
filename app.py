@@ -51,6 +51,10 @@ def autenticar():
 
 @app.route('/dashboard')
 def dashboard():
+    # --- CORREÇÃO AUTOMÁTICA DE STATUS NO BANCO DE DADOS ---
+    db.session.query(Empresa).filter(Empresa.status == None).update({"status": "Pendente"}, synchronize_session=False)
+    db.session.commit()
+    
     agora = datetime.now()
     controle = ControleTempo.query.order_by(ControleTempo.id.desc()).first()
     
@@ -118,7 +122,6 @@ def upload_file():
         filepath = os.path.join(file.filename)
         file.save(filepath)
 
-        # Anti-Crash: Detecta o separador correto automaticamente
         if file.filename.endswith('.csv'):
             try:
                 df = pd.read_csv(filepath, encoding='utf-8', sep=';')
@@ -129,7 +132,6 @@ def upload_file():
         else:
             df = pd.read_excel(filepath)
         
-        # Verifica se as colunas obrigatórias existem
         if 'Nome / Nome Empresarial' not in df.columns:
             flash("Erro: A coluna 'Nome / Nome Empresarial' não foi encontrada. Verifique os títulos no Google Planilhas.")
             return redirect(url_for('dashboard'))
@@ -148,13 +150,13 @@ def upload_file():
             nova_empresa = Empresa(
                 nome=nome_empresa,
                 cnpj_cpf=documento,
-                divida=divida_valor
+                divida=divida_valor,
+                status='Pendente' # Correção para envios futuros
             )
             novas_empresas.append(nova_empresa)
             nomes_existentes.add(nome_empresa)
         
         if novas_empresas:
-            # Salvamento em Lotes (Pacotes de 2000 em 2000 para não estourar a memória do Render)
             tamanho_lote = 2000
             for i in range(0, len(novas_empresas), tamanho_lote):
                 db.session.bulk_save_objects(novas_empresas[i:i+tamanho_lote])
