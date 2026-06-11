@@ -17,7 +17,6 @@
         th { background-color: #2c3e50; color: white; }
         tr:hover { background-color: #f9f9f9; }
         .badge { padding: 5px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: white; }
-        .badge-pendente { background-color: #f1c40f; }
         .badge-reuniao { background-color: #2ecc71; }
         .badge-retornar { background-color: #e67e22; }
         .badge-negado { background-color: #95a5a6; }
@@ -25,7 +24,11 @@
         .btn-reuniao { background-color: #2ecc71; }
         .btn-retornar { background-color: #e67e22; }
         .btn-negado { background-color: #95a5a6; }
-        .btn-api { background-color: #3498db; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        
+        /* O novo visual do botão do Google */
+        .btn-google { background-color: #4285F4; color: white; text-decoration: none; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .btn-google:hover { background-color: #357ae8; }
+        
         .btn-force { background-color: #8e44ad; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
         .btn-force:hover { background-color: #732d91; }
         .flash-message { background-color: #2ecc71; color: white; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-weight: bold; }
@@ -45,14 +48,6 @@
         {% endwith %}
 
         <div class="card">
-            <h2>Carregar Planilha Completa de Devedores</h2>
-            <form action="/upload" method="POST" enctype="multipart/form-data" style="margin-top: 10px;">
-                <input type="file" name="planilha" accept=".csv, .xlsx, .xls" required>
-                <button type="submit" class="upload-btn">Importar Instantaneamente</button>
-            </form>
-        </div>
-
-        <div class="card">
             <div class="header-flex">
                 <h2>Empresas Pendentes de Contato</h2>
                 <a href="/forcar_sorteio" class="btn-force">🔄 Sortear Novo Lote Agora</a>
@@ -61,11 +56,8 @@
                 <thead>
                     <tr>
                         <th>Nome / Razão Social</th>
-                        <th>CNPJ/CPF</th>
                         <th>Dívida</th>
-                        <th>Telefone</th>
-                        <th>E-mail</th>
-                        <th>Consultar</th>
+                        <th>Pesquisa Rápida</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -73,12 +65,11 @@
                     {% for empresa in empresas %}
                     <tr>
                         <td><strong>{{ empresa.nome }}</strong></td>
-                        <td>{{ empresa.cnpj_cpf }}</td>
                         <td>R$ {{ empresa.divida }}</td>
-                        <td>{{ empresa.telefone }}</td>
-                        <td>{{ empresa.email }}</td>
                         <td>
-                            <a href="/buscar_api/{{ empresa.id }}" class="btn-api">🔍 Buscar Dados</a>
+                            <a href="https://www.google.com/search?q={{ empresa.nome | replace(' ', '+') }}+CNPJ+telefone" target="_blank" class="btn-google">
+                                🔍 Buscar no Google
+                            </a>
                         </td>
                         <td>
                             <a href="/atualizar/{{ empresa.id }}/reuniao" class="btn-action btn-reuniao">Agendou</a>
@@ -88,7 +79,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Suba a planilha ou clique em "Sortear Novo Lote Agora".</td>
+                        <td colspan="4" style="text-align: center; color: #7f8c8d;">Nenhuma empresa pendente. Clique em "Sortear Novo Lote Agora".</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -101,10 +92,7 @@
                 <thead>
                     <tr>
                         <th>Nome / Razão Social</th>
-                        <th>CNPJ/CPF</th>
                         <th>Dívida</th>
-                        <th>Telefone</th>
-                        <th>E-mail</th>
                         <th>Status Salvo</th>
                     </tr>
                 </thead>
@@ -112,10 +100,7 @@
                     {% for empresa in historico %}
                     <tr>
                         <td>{{ empresa.nome }}</td>
-                        <td>{{ empresa.cnpj_cpf }}</td>
                         <td>R$ {{ empresa.divida }}</td>
-                        <td>{{ empresa.telefone }}</td>
-                        <td>{{ empresa.email }}</td>
                         <td>
                             {% if empresa.status == 'Reunião Agendada' %}
                                 <span class="badge badge-reuniao">Reunião Agendada</span>
@@ -128,7 +113,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" style="text-align: center; color: #7f8c8d;">Nenhum lead processado ainda.</td>
+                        <td colspan="3" style="text-align: center; color: #7f8c8d;">Nenhum lead processado ainda.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
